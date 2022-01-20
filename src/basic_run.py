@@ -46,7 +46,7 @@ def plot_flows(buildings=None):
 
     for building in buildings:
 
-        file = os.path.join(building, 'eplusout.mtr')
+        file = os.path.join('saves', building, 'eplusout.mtr')
         data.append(mtr2df(file))
 
     num_cols = len(data[0].columns) - 1

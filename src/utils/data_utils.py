@@ -2,9 +2,10 @@ import matplotlib.pyplot as plt
 plt.style.use('bmh')
 import pandas as pd
 from datetime import datetime
+from tqdm import tqdm
 import os
 
-def mtr2df(filename, stop_after_week=False):
+def mtr2df(filename, twoweeks=False, do_plot=False):
     '''
     Reads the .mtr output file (usually 'eplusout.mtr')
     of a besos simulation
@@ -13,8 +14,10 @@ def mtr2df(filename, stop_after_week=False):
     ----------
     filename : str
         mtr file to be read
-    stop_after_week : bool
-        if tru only reads the data for a single week
+    twoweeks : bool
+        if true only reads the data for the first two weeks
+    do_plot : bool
+        if true, plots the data obtained from an .mtr file
 
     
     Returns
@@ -29,8 +32,6 @@ def mtr2df(filename, stop_after_week=False):
 
     df = pd.DataFrame()
 
-    date_indicator = '2.'
-    indicators = {}
     columns = []
 
     # determine end of preamble
@@ -70,39 +71,40 @@ def mtr2df(filename, stop_after_week=False):
     len_data = len(lines) // (len(columns) + 1)
     num_cols = len(columns) + 1
 
-    print('cols: ', columns)
-    df = pd.DataFrame(columns=['timestamp']+columns)
+    print('Receiving datapoints: ', columns)
+    df = pd.DataFrame(columns=['timestamp', 'weekday']+columns)
 
-    for i in range(len_data):
+    if twoweeks: 
+        len_data = 24 * 14
+
+    for i in tqdm(range(len_data)):
         date = lines[i * num_cols].split(',')
         month = int(date[2])
         day = int(date[3])
         hour = int(date[5]) - 1
+        weekday = date[-1]
         date = pd.Timestamp(datetime(2020, month, day, hour, 0, 0))
 
-        row = {'timestamp': date} 
+        row = {'timestamp': date, 'weekday': weekday} 
         for j, col in enumerate(columns):
             line = lines[i * num_cols + j + 1].split(',')[-1]
             row[col] = float(line)
 
         df = df.append(row, ignore_index=True)
 
-        if i == 24 * 7 and stop_after_week:
-            break
-
     df = df.set_index('timestamp')
-    
-    print('Obtained data:')
-    _, ax = plt.subplots(1, 1, figsize=(16, 4))
-    df.plot(ax=ax)
-    plt.show()
 
 
+    if do_plot:
+        print('Obtained data:')
+        _, ax = plt.subplots(1, 1, figsize=(16, 4))
+        df.plot(ax=ax)
+        plt.show()
 
-
+    print(f'Done with file {filename}!')
 
 
 
 if __name__ == '__main__':
-    filename = os.path.join(os.getcwd(), 'dump', 'eplusout.mtr')
-    mtr2df(filename)
+    filename = os.path.join(os.getcwd(), 'src', 'dump', 'eplusout.mtr')
+    mtr2df(filename, twoweeks=True, do_plot=True)

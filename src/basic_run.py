@@ -2,7 +2,6 @@ from datetime import datetime
 import numpy as np
 from besos import eppy_funcs as ef
 import pandas as pd
-import opyplus as op
 import os
 import matplotlib.pyplot as plt
 plt.style.use('bmh')
@@ -13,12 +12,13 @@ from config import file_dict
 
 def run_buildings(buildings=None):
 
-    epath = op.get_eplus_base_dir_path((9, 0, 1))
     dummy_file = 'dummy.idf'
     idf_path = os.path.join(os.getcwd(), '..', 'data', 'epm')
     weather_file = os.path.join(os.getcwd(), '..', 'data', 'weather', 'portangeles.epw')
 
     for building in buildings:
+
+        print(f'Starting analysis of {building}.')
 
         # Change the model runtime according to need
         model = ef.get_building(os.path.join(idf_path, file_dict[building]))
@@ -35,6 +35,15 @@ def run_buildings(buildings=None):
         IDF.setiddname('C:\\EnergyPlusV9-0-1\\Energy+.idd')
 
         model = IDF(dummy_file, weather_file)
+
+        elec_out = model.newidfobject('OUTPUT:METER:METERFILEONLY',)
+        elec_out.Key_Name = 'Electricity:Facility'
+        elec_out.Reporting_Frequency = 'Hourly'
+
+        gas_out = model.newidfobject('OUTPUT:METER:METERFILEONLY',)
+        gas_out.Key_Name = 'Gas:Facility'
+        gas_out.Reporting_Frequency = 'Hourly'
+
         model.run(output_directory=os.path.join('saves', building))
 
         print(f'Done with {building}')

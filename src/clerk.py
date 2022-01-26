@@ -174,15 +174,13 @@ class DataClerk:
         if columns == 'all':
             columns = self.data_dict['quantities']
 
-        num_sims = len(simulations)
         num_cols = len(columns)
-
-        _, ax = plt.subplots(num_cols, 1, figsize=(16, num_cols*4))
 
         x = self.df.index
         vals = np.zeros((num_cols, len(x)))
-        for (i, col), sim in product(enumerate(columns), simulations):
 
+        _, ax = plt.subplots(num_cols, 1, figsize=(16, num_cols*4))
+        for (i, col), sim in product(enumerate(columns), simulations):
             y = self.df[sim + '_' + col]
             ax[i].fill_between(x, vals[i]+y, y2=vals[i], label=sim)
             vals[i] += y

@@ -24,7 +24,7 @@ def run_buildings(buildings=None):
 
     clerk = DataClerk(outpath=os.path.join(os.path.join(os.getcwd(), 'saves')))
 
-    clerk.gather_weather(epw_path=weather_file)
+    clerk.gather_and_store_weather(epw_path=weather_file)
 
     for building in buildings:
 
@@ -55,47 +55,15 @@ def run_buildings(buildings=None):
 
         model.run(output_directory=os.path.join('saves', building))
 
-        print(f'Done with {building}')
+        print(f'\n Done with {building}\n')
         
-        print('----------------')
-        print('Before adding the data: ')
-        print(clerk.df)
-        clerk.gather_and_store(path=building)
-        print('After adding the data: ')
-        print(clerk.df)
-        print('----------------')
+        clerk.gather_and_store_output(path=building)
 
-def plot_flows(buildings=None):
-    
-    data = []
+    print('final report')
+    clerk.report()
 
-    for building in buildings:
-
-        file = os.path.join('saves', building, 'eplusout.mtr')
-        data.append(mtr2df(file))
-
-    num_cols = len(data[0].columns) - 1
-    _, ax = plt.subplots(num_cols, 1, figsize=(16, num_cols*4))
-
-    cols = list(data[0].columns)
-    cols.remove('weekday')
-    for i, col in enumerate(cols):
-        
-        x = data[0].index
-        vals = np.zeros(len(x))
-        for df, building in zip(data, buildings):
-            y = np.array(df[col])
-
-            ax[i].fill_between(x, vals+y, y2=vals, label=building)
-            vals += y
-
-    ax[0].legend()
-
-    for a in ax:
-        a.set_axisbelow(True)
-
-    for i, col in enumerate(cols):
-        ax[i].set_title(col)
+    print('with plots')
+    clerk.plot_results()
 
 
 if __name__ == '__main__':
@@ -105,4 +73,4 @@ if __name__ == '__main__':
 
     buildings = ['office', 'school', 'apartment', 'hotel', 'hospital']
     run_buildings(buildings=buildings)
-    plot_flows(buildings=buildings)
+    

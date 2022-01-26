@@ -39,13 +39,11 @@ def mtr2df(filename, twoweeks=False, do_plot=False):
         
         if line.startswith('End of Data'):
             separation = i+1
-            print(f'Separation found: {separation}')
             break
 
     preamble = lines[:separation]
     for line in preamble[::-1]:
         line = line.partition(',')
-        print(line)
         indicator = line[0]
         try:
             indicator = int(indicator)
@@ -62,17 +60,13 @@ def mtr2df(filename, twoweeks=False, do_plot=False):
 
         except ValueError:
             continue
-
     
     lines = lines[separation+1:]
-    print('first remaining line')
-    print(lines[0])
     columns = columns[::-1]
     len_data = len(lines) // (len(columns) + 1)
     num_cols = len(columns) + 1
 
-    print('Receiving datapoints: ', columns)
-    df = pd.DataFrame(columns=['timestamp', 'weekday']+columns)
+    df = pd.DataFrame(columns=['timestamp']+columns)
 
     if twoweeks: 
         len_data = 24 * 14
@@ -85,7 +79,7 @@ def mtr2df(filename, twoweeks=False, do_plot=False):
         weekday = date[-1]
         date = pd.Timestamp(datetime(2020, month, day, hour, 0, 0))
 
-        row = {'timestamp': date, 'weekday': weekday} 
+        row = {'timestamp': date} 
         for j, col in enumerate(columns):
             line = lines[i * num_cols + j + 1].split(',')[-1]
             row[col] = float(line)
@@ -98,10 +92,13 @@ def mtr2df(filename, twoweeks=False, do_plot=False):
     if do_plot:
         print('Obtained data:')
         _, ax = plt.subplots(1, 1, figsize=(16, 4))
+        ax.set_title('Power flow in: ', filename)
         df.plot(ax=ax)
         plt.show()
 
     print(f'Done with file {filename}!')
+
+    return df
 
 
 

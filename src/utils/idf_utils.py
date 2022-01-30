@@ -2,6 +2,108 @@ import os
 import pandas as pd
 from datetime import datetime
 from besos import eppy_funcs as ef, sampling
+import numpy as np
+from eppy.modeleditor import IDF
+pd.set_option('display.max_columns', None)
+import matplotlib.pyplot as plt
+plt.style.use('bmh')
+
+print(os.getcwd())
+
+from utils.data_utils import mtr2df
+from config import idf_dict
+from config import weather_dict
+
+
+def build_model(config : str, idf_path=None, weather_path=None, view=False):
+    '''
+    builds an energyplus model from config file to be executed via
+    'model.run()'
+
+    Args:
+        config(AttrDict): model configuration
+        idf_path(None or str): path to idf models; if None, a path will be assumed
+        weather_path(None or str): path to .epw weather files. if None, a path will be assumed
+        view(bool): if True plots the current model
+    '''
+
+
+    idf_file = os.path.join(idf_path, idf_dict[config.building_type])
+    model = ef.get_building(idf_file)
+
+    if view:
+        model.view()
+
+    start = pd.Timestamp(datetime(config.start_year, 
+                                  config.start_month, 
+                                  config.start_day))
+    end = pd.Timestamp(datetime(config.end_year, 
+                                config.end_month, 
+                                config.end_day))
+
+    set_runperiod(model, start=start, end=end)
+
+    hold_file = 'hold_model.idf'
+    model.saveas(hold_file)
+    weather_file = os.path.join(weather_path, weather_dict[config.location])
+    model = IDF(hold_file, weather_file)
+
+    os.remove(hold_file)
+
+    print('current config')
+    print(config)
+
+    # set output for model
+    for datum, datum_dict in config.outputs.items():
+
+        # each iteration adds output quantity
+        datum = datum.replace('_', ':')
+        print(f'Adding output {datum}.')
+
+        newobj = model.newidfobject(datum)
+        for key, item in datum_dict.items():
+            setattr(newobj, key, item)
+
+    return model
+
+
+
+
+
+
+
+    for building in buildings:
+
+        print(f'Starting analysis of {building}.')
+
+        # Change the model runtime according to need
+        model.view_model()
+
+        start = pd.Timestamp(datetime(2020, 2, 1))
+        end = pd.Timestamp(datetime(2020, 2, 16))
+        set_runperiod(model, start=start, end=end)
+
+        IDF.setiddname('C:\\EnergyPlusV9-0-1\\Energy+.idd')
+
+        model = IDF(dummy_file, weather_file)
+
+        elec_out = model.newidfobject('OUTPUT:METER:METERFILEONLY',)
+        elec_out.Key_Name = 'Electricity:Facility'
+        elec_out.Reporting_Frequency = 'Hourly'
+
+        gas_out = model.newidfobject('OUTPUT:METER:METERFILEONLY',)
+        gas_out.Key_Name = 'Gas:Facility'
+        gas_out.Reporting_Frequency = 'Hourly'
+
+        model.run(output_directory=os.path.join('saves', building))
+
+        print(f'\n Done with {building}\n')
+        
+        dataclerk.gather_and_store_output(path=building)
+
+
+
+
 
 def set_runperiod(building, 
                   start=None, 

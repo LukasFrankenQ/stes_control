@@ -25,33 +25,36 @@ def execute_runs(cfg_files=[]):
     dummy_file = 'dummy.idf'
     idf_path = os.path.join(os.getcwd(), '..', 'data', 'epm')
     weather_path = os.path.join(os.getcwd(), '..', 'data', 'weather')
-    dataclerk = DataClerk(outpath=os.path.join(os.getcwd(), 'saves'))
+    dataclerk = DataClerk(out_path=os.path.join(os.getcwd(), 'saves'),
+                    idf_path=os.path.join(os.getcwd(), '..', 'data', 'epm'),
+                    weather_path=os.path.join(os.getcwd(), '..', 'data', 'weather'),
+                    year=2020
+                    )
+
 
     for cfg_file in cfg_files:
 
         print(f'Starting run {cfg_file}.')
 
-        if cfg_file.endswith('.yml') or cfg_file.endswith('.yaml'):
-            cfg = yaml.safe_load(Path(cfg_file).read_text())
-            cfg = AttrDict(cfg)
-        else:
-            raise NotImplementedError('Currently only yaml config files are supported')
+        cfg = dataclerk.setup_cfg(cfg_file)
+        print('working with cfg')
+        dataclerk.gather_and_store_weather(cfg)
 
-        dataclerk.gather_and_store_weather(epw_path=os.path.join(
-                            weather_path, weather_dict[cfg.waether_path]))
+        print('before run')
+        dataclerk.report(with_head=True)
 
-        model = build_model(cfg, idf_path=idf_path, weather_path=weather_path, view=True)
-        model.run(output_directory=os.path.join('saves', cfg_file.split('.')[0]))
+        model = build_model(cfg, view=False)
+        model.run(output_directory=cfg.out_dir)
         print(f'\n Done with run {cfg_file}\n')
 
-        dataclerk.gather_and_store_output(path=cfg_file.split('.')[0])
-        dataclerk.to_file()
+        dataclerk.gather_and_store_output(cfg)
+        # dataclerk.to_file()
 
     print('final report')
-    dataclerk.report()
+    dataclerk.report(with_head=True)
 
     print('with plots')
-    dataclerk.plot_results()
+    # dataclerk.plot_results()
 
 
 if __name__ == '__main__':
@@ -63,5 +66,5 @@ if __name__ == '__main__':
     buildings = ['office', 'school', 'apartment', 'hotel', 'hospital']
     run_cfgs = os.listdir(os.path.join(os.getcwd(), 'runs'))
     run_cfgs = [os.path.join(os.getcwd(), 'runs', run) for run in run_cfgs]
-    execute_runs(run_cfgs=run_cfgs)
+    execute_runs(cfg_files=run_cfgs[:1])
     

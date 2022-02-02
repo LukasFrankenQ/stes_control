@@ -1,0 +1,21 @@
+# building options: {office, school, hospital, apartment, hotel}
+building_type: office
+start_year: 2020
+start_month: 1
+start_day: 1
+end_year: 2020
+end_month: 1
+end_day: 2
+# location options: {portangeles}
+location: portangeles
+outputs: 
+  - OUTPUT_METER_METERFILEONLY:
+      Key_Name: Gas:Facility
+      Reporting_Frequency: Hourly
+  - OUTPUT_METER_METERFILEONLY:
+      Key_Name: Electricity:Facility
+      Reporting_Frequency: Hourly
+# building_config:
+
+
+  

@@ -1,23 +1,38 @@
 import os
+import yaml
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from attrdict import AttrDict
 from itertools import product
 from datetime import datetime
 from pvlib.iotools import read_epw
 plt.style.use('bmh')
 
 from utils.data_utils import mtr2df
+from config import weather_dict
+from config import idf_dict
 
 
 class DataClerk:
     '''
+    Prepares energyplus runs from yaml file
     Collects and stores data during and after a series of EnergyPlus simulations
     
     The central idea is to use DataClerk using a with statement. During this,
     DataClerk automatically stores all time based information
 
+    All relevant variables for an experiments are stored in a directory of directory
+    Each item represents one experiment. Each such item is a dict with keys:
+        - config_file (str)
+        - cfg (dict)
+        - data (pandas.DataFrame)
+
+    Also stores paths to relevant directories
+
     Attributes:
+        experiments(dict): 
         df(pd.DataFrame): Stores all time-based data
         data_dict(dict): Stores all data that were created during the simulation and are not cleary time dependent 
         year(int): All data will be unified in its year
@@ -27,21 +42,59 @@ class DataClerk:
         _dirs(List[str]): list of current directories in the output directory
     '''
 
-    def __init__(self, outpath=None, weather_file=None, year=2020):
+    def __init__(self, out_path=None, year=2020,
+                       idf_path=None, weather_path=None):
 
-        self.df = None
+
+        self.experiments = {}
+
         self.data_dict = {'simulations': [], 'quantities': set()}
         self.year = year
 
-        self.outpath = outpath or os.path.join(os.getcwd(), 'data')
-        assert os.path.isdir(self.outpath), f'{self.outpath} does not exist'
+        self.out_path = out_path or os.path.join(os.getcwd(), 'data')
+        assert os.path.isdir(self.out_path), f'{self.out_path} does not exist'
         
         self._vars = dir()
-        self._dirs = os.listdir(self.outpath)
+        self._dirs = os.listdir(self.out_path)
 
-        self.weather_file = weather_file
-        if self.weather_file is None:
-            Warning('No weather file provided!')
+        self.weather_path = weather_path
+        self.idf_path = idf_path
+        if self.weather_path is None:
+            Warning('No weather path provided!')
+        if self.idf_path is None:
+            Warning('No ep model path provided!')
+
+
+
+    def setup_cfg(self, cfg_file : str) -> AttrDict:
+        '''
+        Returns cfg AttrDict from yaml file. Also sets up the facilities to store results
+        in self.experiments
+        '''
+        if cfg_file.endswith('.yml') or cfg_file.endswith('.yaml'):
+            cfg = yaml.safe_load(Path(cfg_file).read_text())
+            cfg = AttrDict(cfg)
+        else:
+            raise NotImplementedError('Currently only yaml config files are supported')
+
+        if '/' in cfg_file: 
+            name = cfg_file.split('/')[-1]
+        elif '\\' in cfg_file:
+            name = cfg_file.split('\\')[-1]
+        name = name.split('.')[0]
+        cfg['name'] = name
+        cfg['out_dir'] = os.path.join(self.out_path, name)
+        cfg['idf_path'] = self.idf_path
+        cfg['weather_path'] = self.weather_path
+
+        self.experiments[name] = AttrDict({})
+        self.experiments[name]['cfg_file'] = name + '.yml'
+        self.experiments[name]['cfg'] = cfg
+
+        self.curr_experiment = name 
+
+        return cfg
+
 
 
     def __enter__(self):
@@ -56,7 +109,7 @@ class DataClerk:
         new_vars = dir()
         new_vars = [entry for entry in new_vars if not entry in self._vars]
 
-        new_dirs = os.listdir(self.outpath)
+        new_dirs = os.listdir(self.out_path)
         new_dirs = [entry for entry in new_dirs if not entry in self._dirs]
 
         print('these are the new dirs:')
@@ -69,43 +122,65 @@ class DataClerk:
             print(df.head())
 
 
-    def report(self):
+    def report(self, all=False, with_head=False):
         '''
         prints current self.df
         '''
         print('Current data:')
 
         print('Spanning an index range:')
-        print(f'from {self.df.index[0]} to {self.df.index[-1]}')
 
-        print(self.df.info())
+        if all:
+            keys = list(self.experiments)
+        else: 
+            keys = [self.curr_experiment]
+
+        for key in keys:
+            df = self.experiments[key]['data']
+            print(f'obtained data for experiment {key}')
+            print(df.info())
+            print(f'gathered in timeframe: {df.index[0]} to {df.index[-1]}')
+
+            if with_head:
+                print(df.head())
 
 
-    def gather_and_store_output(self, path: str=None) -> None:
+
+    def gather_and_store_output(self, cfg) -> None:
         '''
         Obtains data using self.gather_output and appends the
         data to self.df
-        '''
-        self.data_dict['simulations'].append(path)
 
-        files = os.listdir(os.path.join(self.outpath, path))
-        files = [os.path.join(self.outpath, path, file) for file in files]
+        Args:
+            cfg(AttrDict): current experiment config
+        '''
+
+        try:
+            exp_df = self.experiments[cfg.name]['data']
+        except KeyError:
+            exp_df = None
+
+        name = self.curr_experiment
+        path = os.path.join(self.out_path, name)
+
+        files = os.listdir(path)
+        files = [os.path.join(path, file) for file in files]
         file = [file for file in files if file.endswith('.mtr')][0]
 
         df = self.gather_output(os.path.join(path, file))
-        self.data_dict['quantities'].update(df.columns)
-        df.columns = [path + '_' + col for col in df.columns]
 
-        df['time_tuple'] = df.apply(lambda row: (row.name.month, row.name.day, row.name.hour), axis=1)            
+        df['time_tuple'] = df.apply(lambda row: (row.name.month, 
+                                    row.name.day, row.name.hour), axis=1)            
 
-        if self.df is None:
-            self.df = df
-
+        if exp_df is None:
+            exp_df = df
         else:
-            self.df = self.df.merge(df, on='time_tuple', how='inner')
+            exp_df = df.merge(exp_df, on='time_tuple', how='inner')
 
-        if not isinstance(self.df.index[0], pd.Timestamp):
-            self.set_index_time()
+        if not isinstance(exp_df.index[0], pd.Timestamp):
+            exp_df = self.index_as_timestamp(exp_df)
+
+        self.experiments[cfg.name]['data'] = exp_df
 
 
     def gather_output(self, path: str = None) -> pd.DataFrame:
@@ -115,30 +190,40 @@ class DataClerk:
         return  mtr2df(path or self.outpath)
 
 
-    def gather_and_store_weather(self, epw_path: str = None, drops=['data_source_unct']) -> None:
+    def gather_and_store_weather(self, cfg, drops=['data_source_unct']):
         '''
         Obtains weather data using self.gather_weather and stores it in self.df
 
-        epw_path(str): path to weather file
-        drops(List[str]): name of columns that are dropped
+        Args:
+            cfg(AttrDict): config file of current experiment
+            drops(List[str]): name of columns that are dropped
         '''
         
+        try:
+            df = self.experiments[self.curr_experiment]['data']
+        except KeyError:
+            df = None
+
         # used to match weather data to simulation output data
+        epw_path = os.path.join(self.weather_path, weather_dict[cfg.location])
         epw_df = self.gather_weather(epw_path)
         epw_df['time_tuple'] = epw_df.apply(lambda row: (row.month, row.day, row.hour), axis=1)
         epw_df = epw_df.drop(drops, axis=1)
 
-        if self.df is None:
-            self.df = epw_df
+        if df is None:
+            df = epw_df
         else:
-            self.df = self.df.merge(epw_df, on='time_tuple', how='inner')
+            df = df.merge(epw_df, on='time_tuple', how='inner')
 
-        if not isinstance(self.df.index[0], pd.Timestamp):
-            self.set_index_time()
+        if not isinstance(df.index[0], pd.Timestamp):
+            df = self.index_as_timestamp(df)
         
         # add weekday if necessary
-        if not 'weekday' in self.df.columns:
-            self.df['weekday'] = self.df.index.map(lambda x: x.weekday())
+        if not 'weekday' in df.columns:
+            df['weekday'] = df.index.map(lambda x: x.weekday())
+
+        self.experiments[self.curr_experiment]['data'] = df
+
 
 
     def gather_weather(self, epw_path : str, data=[]) -> pd.DataFrame:
@@ -149,13 +234,15 @@ class DataClerk:
         return read_epw(epw_path)[0]
 
 
-    def set_index_time(self):
+    def index_as_timestamp(self, df):
         '''
         sets index to datetime type
         '''
-        self.df['timestamp'] = self.df.apply(lambda row: 
+        df['timestamp'] = df.apply(lambda row: 
                 pd.Timestamp(datetime(self.year, row.month, row.day, row.hour)), axis=1)
-        self.df.set_index('timestamp', inplace=True)
+        df.set_index('timestamp', inplace=True)
+
+        return df
 
 
     def plot_results(self, simulations='all', columns='all') -> None:

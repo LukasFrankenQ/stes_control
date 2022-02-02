@@ -14,8 +14,7 @@ from utils.data_utils import mtr2df
 from config import idf_dict
 from config import weather_dict
 
-
-def build_model(config : str, idf_path=None, weather_path=None, view=False):
+def build_model(config : str, view=False):
     '''
     builds an energyplus model from config file to be executed via
     'model.run()'
@@ -28,7 +27,7 @@ def build_model(config : str, idf_path=None, weather_path=None, view=False):
     '''
 
 
-    idf_file = os.path.join(idf_path, idf_dict[config.building_type])
+    idf_file = os.path.join(config.idf_path, idf_dict[config.building_type])
     model = ef.get_building(idf_file)
 
     if view:
@@ -45,64 +44,23 @@ def build_model(config : str, idf_path=None, weather_path=None, view=False):
 
     hold_file = 'hold_model.idf'
     model.saveas(hold_file)
-    weather_file = os.path.join(weather_path, weather_dict[config.location])
+    weather_file = os.path.join(config.weather_path, weather_dict[config.location])
     model = IDF(hold_file, weather_file)
 
     os.remove(hold_file)
 
-    print('current config')
-    print(config)
-
     # set output for model
-    for datum, datum_dict in config.outputs.items():
-
+    for datum_dict in config.outputs:
+        
         # each iteration adds output quantity
+        datum = list(datum_dict)[0]
         datum = datum.replace('_', ':')
-        print(f'Adding output {datum}.')
 
         newobj = model.newidfobject(datum)
-        for key, item in datum_dict.items():
+        for key, item in datum_dict[list(datum_dict)[0]].items():
             setattr(newobj, key, item)
 
     return model
-
-
-
-
-
-
-
-    for building in buildings:
-
-        print(f'Starting analysis of {building}.')
-
-        # Change the model runtime according to need
-        model.view_model()
-
-        start = pd.Timestamp(datetime(2020, 2, 1))
-        end = pd.Timestamp(datetime(2020, 2, 16))
-        set_runperiod(model, start=start, end=end)
-
-        IDF.setiddname('C:\\EnergyPlusV9-0-1\\Energy+.idd')
-
-        model = IDF(dummy_file, weather_file)
-
-        elec_out = model.newidfobject('OUTPUT:METER:METERFILEONLY',)
-        elec_out.Key_Name = 'Electricity:Facility'
-        elec_out.Reporting_Frequency = 'Hourly'
-
-        gas_out = model.newidfobject('OUTPUT:METER:METERFILEONLY',)
-        gas_out.Key_Name = 'Gas:Facility'
-        gas_out.Reporting_Frequency = 'Hourly'
-
-        model.run(output_directory=os.path.join('saves', building))
-
-        print(f'\n Done with {building}\n')
-        
-        dataclerk.gather_and_store_output(path=building)
-
-
-
 
 
 def set_runperiod(building, 

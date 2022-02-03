@@ -37,11 +37,7 @@ def execute_runs(cfg_files=[]):
         print(f'Starting run {cfg_file}.')
 
         cfg = dataclerk.setup_cfg(cfg_file)
-        print('working with cfg')
         dataclerk.gather_and_store_weather(cfg)
-
-        print('before run')
-        dataclerk.report(with_head=True)
 
         model = build_model(cfg, view=False)
         model.run(output_directory=cfg.out_dir)
@@ -50,11 +46,11 @@ def execute_runs(cfg_files=[]):
         dataclerk.gather_and_store_output(cfg)
         # dataclerk.to_file()
 
-    print('final report')
-    dataclerk.report(with_head=True)
+        print('final report')
+        dataclerk.report(with_head=True)
 
-    print('with plots')
-    # dataclerk.plot_results()
+        dataclerk.to_csv()
+
 
 
 if __name__ == '__main__':

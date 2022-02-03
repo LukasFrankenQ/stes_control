@@ -47,6 +47,7 @@ class DataClerk:
 
 
         self.experiments = {}
+        self.curr_experiment = None
 
         self.data_dict = {'simulations': [], 'quantities': set()}
         self.year = year
@@ -169,6 +170,10 @@ class DataClerk:
 
         df = self.gather_output(os.path.join(path, file))
 
+
+        renames = {col: 'output_'+col for col in df.columns if ':' in col}
+        df.rename(columns=renames, inplace=True)
+
         df['time_tuple'] = df.apply(lambda row: (row.name.month, 
                                     row.name.day, row.name.hour), axis=1)            
 
@@ -282,3 +287,23 @@ class DataClerk:
 
         plt.tight_layout()
         plt.show()
+
+
+    def to_csv(self, all=False):
+        '''
+        exports experimental data to csv file
+
+        Args:
+            all(bool): only current experiment if False
+
+        '''
+
+        if all:
+            for name, exp_dict in self.experiments.items():
+                exp_dict['data'].to_csv(os.path.join(self.out_path, name+'.csv'))
+
+        else:
+            name = self.curr_experiment
+            exp_dict = self.experiments[name]
+            exp_dict['data'].to_csv(os.path.join(self.out_path, name+'.csv'))
+            

@@ -1,5 +1,5 @@
-# building options: {office, school, hospital, apartment, hotel}
-building_type: office
+# building options: {office, school, hospital, hotel, apartment}
+building_type: hotel
 start_year: 2020
 start_month: 1
 start_day: 1

@@ -1,4 +1,5 @@
 import os
+import sys
 import yaml
 from pathlib import Path
 import numpy as np
@@ -13,6 +14,12 @@ plt.style.use('bmh')
 from utils.data_utils import mtr2df
 from config import weather_dict
 from config import idf_dict
+
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
+PROJECT_ROOT = os.environ.get('PROJECT_RROOT')
+sys.path.append(PROJECT_ROOT)
 
 
 class DataClerk:
@@ -42,29 +49,21 @@ class DataClerk:
         _dirs(List[str]): list of current directories in the output directory
     '''
 
-    def __init__(self, out_path=None, year=2020,
-                       idf_path=None, weather_path=None):
+    def __init__(self, year=2020):
 
+        self.config_path = os.environ.get('CONFIG_PATH')
+        self.weather_path = os.environ.get('WEATHER_PATH')
+        self.idf_path = os.environ.get('IDF_PATH')
+        self.out_path = os.environ.get('SAVES_PATH')
 
         self.experiments = {}
         self.curr_experiment = None
 
         self.data_dict = {'simulations': [], 'quantities': set()}
         self.year = year
-
-        self.out_path = out_path or os.path.join(os.getcwd(), 'data')
-        assert os.path.isdir(self.out_path), f'{self.out_path} does not exist'
         
         self._vars = dir()
         self._dirs = os.listdir(self.out_path)
-
-        self.weather_path = weather_path
-        self.idf_path = idf_path
-        if self.weather_path is None:
-            Warning('No weather path provided!')
-        if self.idf_path is None:
-            Warning('No ep model path provided!')
-
 
 
     def setup_cfg(self, cfg_file : str) -> AttrDict:
@@ -72,8 +71,11 @@ class DataClerk:
         Returns cfg AttrDict from yaml file. Also sets up the facilities to store results
         in self.experiments
         '''
+
+        cfg = os.path.join(self.config_path, cfg_file)
+
         if cfg_file.endswith('.yml') or cfg_file.endswith('.yaml'):
-            cfg = yaml.safe_load(Path(cfg_file).read_text())
+            cfg = yaml.safe_load(Path(cfg).read_text())
             cfg = AttrDict(cfg)
         else:
             raise NotImplementedError('Currently only yaml config files are supported')
@@ -82,6 +84,8 @@ class DataClerk:
             name = cfg_file.split('/')[-1]
         elif '\\' in cfg_file:
             name = cfg_file.split('\\')[-1]
+        else:
+            name = cfg_file
         name = name.split('.')[0]
         cfg['name'] = name
         cfg['out_dir'] = os.path.join(self.out_path, name)
@@ -161,8 +165,9 @@ class DataClerk:
         except KeyError:
             exp_df = None
 
-        name = self.curr_experiment
-        path = os.path.join(self.out_path, name)
+        print('cfg in gather')
+        print(cfg)
+        path = os.path.join(self.out_path, cfg.out_dir)
 
         files = os.listdir(path)
         files = [os.path.join(path, file) for file in files]
@@ -210,6 +215,7 @@ class DataClerk:
             df = None
 
         # used to match weather data to simulation output data
+        print(cfg.location)
         epw_path = os.path.join(self.weather_path, weather_dict[cfg.location])
         epw_df = self.gather_weather(epw_path)
         epw_df['time_tuple'] = epw_df.apply(lambda row: (row.month, row.day, row.hour), axis=1)

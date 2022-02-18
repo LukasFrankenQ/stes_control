@@ -8,5 +8,6 @@ idf_dict = {
 
 weather_dict = {
     'portangeles': 'portangeles.epw',
-    'greatfalls': 'greatfalls.epw'
+    'greatfalls': 'greatfalls.epw',
+    'tucson': 'tucson.epw'
 }

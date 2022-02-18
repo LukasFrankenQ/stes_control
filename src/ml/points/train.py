@@ -18,7 +18,7 @@ data['noise'] = pd.Series(np.random.normal(size=len(data)), index=data.index)
 data.drop(columns=['time_tuple', 'year', 'minute'], inplace=True)
 
 workdays = [1, 2, 3, 4, 5]
-data['weekday'] = data.weekday.apply(lambda day: 0 if day in workdays else 1)
+data['weekday'] = data.weekday.apply(lambda day: 0. if day in workdays else 1.)
 
 # remove non-varying entries
 for feature in data.columns:

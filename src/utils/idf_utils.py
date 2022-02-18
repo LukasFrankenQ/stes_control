@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from datetime import datetime
 from besos import eppy_funcs as ef, sampling
+import eppy.json_functions as json_functions
 import numpy as np
 from eppy.modeleditor import IDF
 pd.set_option('display.max_columns', None)
@@ -14,16 +15,15 @@ from utils.data_utils import mtr2df
 from config import idf_dict
 from config import weather_dict
 
-def build_model(config : str, view=False):
+def build_model(config : dict, view=False, json_update=None):
     '''
     builds an energyplus model from config file to be executed via
     'model.run()'
 
     Args:
         config(AttrDict): model configuration
-        idf_path(None or str): path to idf models; if None, a path will be assumed
-        weather_path(None or str): path to .epw weather files. if None, a path will be assumed
         view(bool): if True plots the current model
+        json_update(dict): updates idf using eppy.json_functions.update_idf
     '''
 
 
@@ -45,12 +45,16 @@ def build_model(config : str, view=False):
     hold_file = 'hold_model.idf'
     model.saveas(hold_file)
     weather_file = os.path.join(config.weather_path, weather_dict[config.location])
+    print('using weather file')
+    print(weather_file)
     model = IDF(hold_file, weather_file)
 
     os.remove(hold_file)
 
     # set output for model
-    for datum_dict in config.outputs:
+    for datum_dict in config.building_config:
+
+        print(f'Adding Output: {datum_dict}')
         
         # each iteration adds output quantity
         datum = list(datum_dict)[0]
@@ -59,6 +63,65 @@ def build_model(config : str, view=False):
         newobj = model.newidfobject(datum)
         for key, item in datum_dict[list(datum_dict)[0]].items():
             setattr(newobj, key, item)
+
+    if json_update is not None:
+        json_functions.updateidf(model, json_update)
+
+    return model
+
+
+def scale_temp_setpoints(model, factor):
+    '''
+    Iterates over all idfobjects in 'SCHEDULE:COMPACT'.
+    If the schedule ist temperature based, all temperature values
+    are multiplied by factor
+
+    Args:
+        model(IDF): EP model subject to change
+        factor(float): factor by which temperature should be changed
+    
+    Returns:
+        model(IDF)
+    '''
+    schedule = model.idfobjects['SCHEDULE:COMPACT']
+
+    for object in schedule:
+        
+        if not object.Schedule_Type_Limits_Name == 'Temperature':
+            continue
+
+        for field in object['objls'][:110]:
+            value = getattr(object, field)
+            if len(value) > 0:
+                try:
+                    setattr(object, field, str(factor*float(value)))
+                except ValueError:
+                    pass
+
+    model.idfobjects['SCHEDULE:COMPACT'] = schedule
+
+    return model
+
+
+
+
+
+
+
+    '''
+    # set building config
+    for datum_dict in config.building_config:
+
+        print(f'Adding Building config: {datum_dict}')
+    
+        # each iteration adds changes one object in the building simulation
+        datum = list(datum_dict)[0]
+        datum = datum.replace('_', ':')
+
+        newobj = model.newidfobject(datum)
+        for key, item in datum_dict[list(datum_dict)[0]].items():
+            setattr(newobj, key, item)
+    '''
 
     return model
 
